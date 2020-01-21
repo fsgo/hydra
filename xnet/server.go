@@ -1,10 +1,10 @@
 /*
- * Copyright(C) 2019 github.com/hidu  All Rights Reserved.
+ * Copyright(C) 2020 github.com/hidu  All Rights Reserved.
  * Author: hidu (duv123+git@baidu.com)
- * Date: 2019/12/29
+ * Date: 2020/1/18
  */
 
-package mpserver
+package xnet
 
 import (
 	"errors"
@@ -19,7 +19,7 @@ func newProtocol(p protocol.Protocol) *serverProtocol {
 	return &serverProtocol{
 		Protocol: p,
 		ListenerProxy: &listenerProxy{
-			conns: make(chan net.Conn, 100),
+			connects: make(chan net.Conn, 100),
 		},
 	}
 }

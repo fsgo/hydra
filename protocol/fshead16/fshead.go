@@ -4,7 +4,7 @@
  * Date: 2020/1/12
  */
 
-package fshead
+package fshead32
 
 import (
 	"fmt"
@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/fsgo/fshead"
+	"github.com/fsgo/fsprotocol/fshead32"
 
 	"github.com/fsgo/mpserver/protocol"
 )
@@ -25,15 +26,15 @@ type Protocol struct {
 	Config   *protocol.Config
 	MagicNum uint32
 
-	Handler func(h *fshead.FsHead, metaRead Read, bodyRead Read) []byte
+	Handler func(head *fshead32.Head,conn net.Conn)
 }
 
 func (p *Protocol) HeaderLen() int {
-	return fshead.Length
+	return fshead32.Length
 }
 
 func (p *Protocol) Is(header []byte) bool {
-	_, err := fshead.ParserBytes(header, p.MagicNum)
+	_, err := fshead32.ParserBytes(header, p.MagicNum)
 	return err == nil
 }
 
@@ -42,7 +43,7 @@ func (p *Protocol) BindConfig(config *protocol.Config) {
 }
 
 func (p *Protocol) Name() string {
-	return "fshead"
+	return "fshead32"
 }
 
 func (p *Protocol) Serve(l net.Listener) error {
@@ -97,7 +98,7 @@ func (p *Protocol) serveConn(conn net.Conn) {
 			log.Println(err.Error())
 			return
 		}
-		h, err := fshead.ParserBytes(head, p.MagicNum)
+		h, err := fshead32.ParserBytes(head, p.MagicNum)
 
 		head = head[:0]
 		headerBufPool.Put(head)

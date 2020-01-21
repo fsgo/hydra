@@ -4,7 +4,7 @@
  * Date: 2019/12/28
  */
 
-package mpserver
+package hydra
 
 import (
 	"errors"
@@ -12,8 +12,8 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/fsgo/mpserver/protocol"
-	"github.com/fsgo/mpserver/xnet"
+	"github.com/fsgo/hydra/protocol"
+	"github.com/fsgo/hydra/xnet"
 )
 
 type Options = xnet.Options

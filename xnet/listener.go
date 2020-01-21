@@ -9,7 +9,7 @@ package xnet
 import (
 	"net"
 
-	"github.com/fsgo/mpserver/protocol"
+	"github.com/fsgo/hydra/protocol"
 )
 
 type Listener interface {

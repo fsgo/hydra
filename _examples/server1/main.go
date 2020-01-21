@@ -16,15 +16,15 @@ import (
 
 	"github.com/fsgo/fsprotocol/fshead16"
 
-	"github.com/fsgo/mpserver"
-	"github.com/fsgo/mpserver/_examples/server1/protocol/repeater"
-	"github.com/fsgo/mpserver/protocol"
-	"github.com/fsgo/mpserver/protocol/fshead16server"
-	"github.com/fsgo/mpserver/protocol/httpserver"
+	"github.com/fsgo/hydra"
+	"github.com/fsgo/hydra/_examples/server1/protocol/repeater"
+	"github.com/fsgo/hydra/protocol"
+	"github.com/fsgo/hydra/protocol/fshead16server"
+	"github.com/fsgo/hydra/protocol/httpserver"
 )
 
 func main() {
-	s := mpserver.NewServer(nil)
+	s := hydra.NewServer(nil)
 	addr, _ := net.ResolveTCPAddr("tcp", "0.0.0.0:8090")
 	s.SetListenAddr(addr)
 

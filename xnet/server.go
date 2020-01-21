@@ -12,7 +12,7 @@ import (
 	"net"
 	"sort"
 
-	"github.com/fsgo/mpserver/protocol"
+	"github.com/fsgo/hydra/protocol"
 )
 
 var ErrUnknownProtocol = fmt.Errorf("protocol not support yet")

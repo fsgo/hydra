@@ -13,11 +13,10 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/fsgo/mpserver/protocol"
+	"github.com/fsgo/hydra/protocol"
 )
 
 type Protocol struct {
-	config  *protocol.Config
 	running int32
 	Handler func(input []byte, writer io.Writer)
 }
@@ -28,10 +27,6 @@ func (p *Protocol) HeaderLen() int {
 
 func (p *Protocol) Is(header []byte) bool {
 	return bytes.HasPrefix(header, []byte("say:"))
-}
-
-func (p *Protocol) BindConfig(config *protocol.Config) {
-	p.config = config
 }
 
 func (p *Protocol) Name() string {

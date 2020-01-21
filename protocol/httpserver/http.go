@@ -11,23 +11,17 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/fsgo/mpserver/protocol"
+	"github.com/fsgo/hydra/protocol"
 )
 
 // Protocol HTTP 协议
 type Protocol struct {
 	Server *http.Server
-	Config *protocol.Config
 }
 
 // HeaderLen 可判断协议的最小长度
 func (p *Protocol) HeaderLen() int {
 	return 7
-}
-
-// BindConfig 设置配置
-func (p *Protocol) BindConfig(config *protocol.Config) {
-	p.Config = config
 }
 
 // Name 协议名称

@@ -13,7 +13,7 @@ import (
 
 	"github.com/fsgo/fsprotocol/fshead16"
 
-	"github.com/fsgo/mpserver/protocol"
+	"github.com/fsgo/hydra/protocol"
 )
 
 type Read func() ([]byte, error)

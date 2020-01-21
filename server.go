@@ -8,21 +8,20 @@ package hydra
 
 import (
 	"errors"
-	"log"
 	"net"
 	"sync/atomic"
 
-	"github.com/fsgo/hydra/protocol"
+	"github.com/fsgo/hydra/servers"
 	"github.com/fsgo/hydra/xnet"
 )
 
 type Options = xnet.Options
 
-// MultiProtocolServer 多协议server接口定义
-type MultiProtocolServer interface {
+// HydraServer 多协议server接口定义
+type Server interface {
 	SetListenAddr(addr net.Addr)
 
-	RegisterProtocol(p protocol.Protocol)
+	RegisterServer(s servers.Server)
 
 	Start() error
 
@@ -30,36 +29,38 @@ type MultiProtocolServer interface {
 }
 
 // NewServer 一个新的server
-func NewServer(opts *Options) MultiProtocolServer {
+func NewServer(opts *Options) Server {
 	if opts == nil {
 		opts = xnet.OptionsDefault
 	}
-	return &Server{
-		xServer: xnet.NewServer(opts),
+	return &defaultServer{
+		opts:    opts,
+		xServer: xnet.NewHydra(opts),
 	}
 }
 
-// Server 多协议server的默认实现
-type Server struct {
+// defaultServer 多协议server的默认实现
+type defaultServer struct {
 	addr net.Addr
+	opts *xnet.Options
 
-	xServer xnet.Server
+	xServer xnet.Hydra
 
 	running int32
 }
 
 // SetListenAddr 设置监听的地址
-func (s *Server) SetListenAddr(addr net.Addr) {
+func (s *defaultServer) SetListenAddr(addr net.Addr) {
 	s.addr = addr
 }
 
 // RegisterProtocol 注册一种新协议
-func (s *Server) RegisterProtocol(p protocol.Protocol) {
-	s.xServer.RegisterProtocol(p)
+func (s *defaultServer) RegisterServer(ss servers.Server) {
+	s.xServer.RegisterServer(ss)
 }
 
 // Start 启动服务
-func (s *Server) Start() error {
+func (s *defaultServer) Start() error {
 	s.running = 1
 	if s.addr == nil {
 		return errors.New("addr is nil")
@@ -73,8 +74,6 @@ func (s *Server) Start() error {
 
 	defer listener.Close()
 
-	log.Printf("server Lister : %s/%s\n", s.addr.Network(), s.addr.String())
-
 	errChan := make(chan error, 1)
 
 	s.xServer.Serve(listener, errChan)
@@ -86,14 +85,19 @@ func (s *Server) Start() error {
 
 		select {
 		case err := <-errChan:
-			log.Println("Serve error:", err)
+			return err
 		default:
 		}
 
 		conn, err := listener.Accept()
+
 		if err != nil {
-			log.Fatal("listener.Accept error:", err)
+			if s.opts.OnAcceptError != nil {
+				s.opts.OnAcceptError(err)
+			}
+			continue
 		}
+
 		go s.xServer.Dispatch(conn)
 	}
 
@@ -101,7 +105,7 @@ func (s *Server) Start() error {
 }
 
 // Stop 停止服务
-func (s *Server) Stop() error {
+func (s *defaultServer) Stop() error {
 	if err := s.xServer.Stop(); err != nil {
 		return err
 	}
@@ -109,4 +113,4 @@ func (s *Server) Stop() error {
 	return nil
 }
 
-var _ MultiProtocolServer = &Server{}
+var _ Server = &defaultServer{}

@@ -17,10 +17,10 @@ import (
 	"github.com/fsgo/fsprotocol/fshead16"
 
 	"github.com/fsgo/hydra"
-	"github.com/fsgo/hydra/_examples/server1/protocol/repeater"
-	"github.com/fsgo/hydra/protocol"
-	"github.com/fsgo/hydra/protocol/fshead16server"
-	"github.com/fsgo/hydra/protocol/httpserver"
+	"github.com/fsgo/hydra/_examples/server1/repeater"
+	"github.com/fsgo/hydra/servers"
+	"github.com/fsgo/hydra/servers/fshead16server"
+	"github.com/fsgo/hydra/servers/httpserver"
 )
 
 func main() {
@@ -29,21 +29,21 @@ func main() {
 	s.SetListenAddr(addr)
 
 	// 注册http 协议
-	s.RegisterProtocol(httpServer())
+	s.RegisterServer(httpServer())
 
 	// 注册自定义协议
-	s.RegisterProtocol(&repeater.Protocol{})
+	s.RegisterServer(&repeater.Repeater{})
 
 	// 注册fshead协议server
-	s.RegisterProtocol(fsheadServer())
+	s.RegisterServer(fsheadServer())
 
 	err := s.Start()
 	log.Fatalln("stopped:", err)
 }
 
-func httpServer() protocol.Protocol {
+func httpServer() servers.Server {
 	serveMux := http.NewServeMux()
-	server := &httpserver.Protocol{
+	server := &httpserver.Server{
 		Server: &http.Server{
 			Handler: serveMux,
 		},
@@ -56,8 +56,8 @@ func httpServer() protocol.Protocol {
 	return server
 }
 
-func fsheadServer() protocol.Protocol {
-	fsheadServer := &fshead16server.Protocol{
+func fsheadServer() servers.Server {
+	fsheadServer := &fshead16server.Server{
 		Handler: func(conn net.Conn) {
 
 			var readDeadLine time.Time

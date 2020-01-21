@@ -12,9 +12,19 @@ import (
 )
 
 type Options struct {
-	OnListen    func(l net.Listener) error
-	OnConnect   func(conn net.Conn) error
-	OnConnClose func(conn net.Conn)
+	ListerChanSize int
+	OnListen       func(l net.Listener) error
+	OnConnect      func(conn net.Conn) error
+	OnConnClose    func(conn net.Conn)
+
+	OnAcceptError func(err error)
+}
+
+func (o *Options) GetListerChanSize() int {
+	if o.ListerChanSize > 0 {
+		return o.ListerChanSize
+	}
+	return 1024
 }
 
 var OptionsDefault = &Options{

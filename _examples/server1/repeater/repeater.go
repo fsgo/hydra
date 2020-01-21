@@ -13,27 +13,27 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/fsgo/hydra/protocol"
+	"github.com/fsgo/hydra/servers"
 )
 
-type Protocol struct {
+type Repeater struct {
 	running int32
 	Handler func(input []byte, writer io.Writer)
 }
 
-func (p *Protocol) HeaderLen() int {
+func (p *Repeater) HeaderLen() int {
 	return 4
 }
 
-func (p *Protocol) Is(header []byte) bool {
+func (p *Repeater) Is(header []byte) bool {
 	return bytes.HasPrefix(header, []byte("say:"))
 }
 
-func (p *Protocol) Name() string {
+func (p *Repeater) Name() string {
 	return "repeater"
 }
 
-func (p *Protocol) Serve(l net.Listener) error {
+func (p *Repeater) Serve(l net.Listener) error {
 	p.running = 1
 
 	for p.Running() {
@@ -46,11 +46,11 @@ func (p *Protocol) Serve(l net.Listener) error {
 	return nil
 }
 
-func (p *Protocol) Running() bool {
+func (p *Repeater) Running() bool {
 	return atomic.LoadInt32(&p.running) == 1
 }
 
-func (p *Protocol) handle(conn net.Conn) {
+func (p *Repeater) handle(conn net.Conn) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -64,7 +64,7 @@ func (p *Protocol) handle(conn net.Conn) {
 		}
 
 		if !bytes.HasPrefix(line, []byte("say:")) {
-			conn.Write([]byte("wrong input,expect start with: \"say:\""))
+			conn.Write([]byte("wrong input,expect start with: \"say:\"\n"))
 			return
 		}
 		body := line[4:]
@@ -74,9 +74,9 @@ func (p *Protocol) handle(conn net.Conn) {
 	}
 }
 
-func (p *Protocol) Close() error {
+func (p *Repeater) Close() error {
 	atomic.StoreInt32(&p.running, 0)
 	return nil
 }
 
-var _ protocol.Protocol = &Protocol{}
+var _ servers.Server = &Repeater{}

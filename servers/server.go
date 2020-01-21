@@ -4,14 +4,14 @@
  * Date: 2019/12/28
  */
 
-package protocol
+package servers
 
 import (
 	"net"
 )
 
-// Protocol 协议接口定义
-type Protocol interface {
+// Server 协议接口定义
+type Server interface {
 	HeaderLen() int
 
 	Is(header []byte) bool

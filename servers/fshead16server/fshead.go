@@ -8,36 +8,33 @@ package fshead16server
 
 import (
 	"net"
-	"sync"
 	"sync/atomic"
 
 	"github.com/fsgo/fsprotocol/fshead16"
 
-	"github.com/fsgo/hydra/protocol"
+	"github.com/fsgo/hydra/servers"
 )
 
-type Read func() ([]byte, error)
-
-// Protocol HTTP 协议
-type Protocol struct {
+// Server HTTP 协议
+type Server struct {
 	Head    fshead16.Head
 	Handler func(conn net.Conn)
 	running int32
 }
 
-func (p *Protocol) HeaderLen() int {
+func (p *Server) HeaderLen() int {
 	return p.Head.DiscernLen()
 }
 
-func (p *Protocol) Is(header []byte) bool {
+func (p *Server) Is(header []byte) bool {
 	return p.Head.Is(header)
 }
 
-func (p *Protocol) Name() string {
+func (p *Server) Name() string {
 	return "fshead16"
 }
 
-func (p *Protocol) Serve(l net.Listener) error {
+func (p *Server) Serve(l net.Listener) error {
 	p.running = 1
 	for {
 		if atomic.LoadInt32(&p.running) != 1 {
@@ -52,15 +49,9 @@ func (p *Protocol) Serve(l net.Listener) error {
 	}
 }
 
-var headerBufPool = sync.Pool{
-	New: func() interface{} {
-		return make([]byte, 0, fshead16.Length)
-	},
-}
-
-func (p *Protocol) Close() error {
+func (p *Server) Close() error {
 	atomic.StoreInt32(&p.running, 0)
 	return nil
 }
 
-var _ protocol.Protocol = &Protocol{}
+var _ servers.Server = &Server{}

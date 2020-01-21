@@ -8,33 +8,23 @@ package xnet
 
 import (
 	"net"
-
-	"github.com/fsgo/hydra/protocol"
 )
 
 type Listener interface {
 	net.Listener
 	SetAddr(addr net.Addr)
-	Protocol() protocol.Protocol
 	DispatchConnAsync(conn net.Conn)
-	Serve() error
 }
 
-func NewListener(p protocol.Protocol) Listener {
+func NewListener(size int) Listener {
 	return &ListenerProxy{
-		ProtocolValue: p,
-		Connects:      make(chan net.Conn, 1024),
+		Connects: make(chan net.Conn, size),
 	}
 }
 
 type ListenerProxy struct {
-	AddrValue     net.Addr
-	Connects      chan net.Conn
-	ProtocolValue protocol.Protocol
-}
-
-func (l *ListenerProxy) Protocol() protocol.Protocol {
-	return l.ProtocolValue
+	AddrValue net.Addr
+	Connects  chan net.Conn
 }
 
 func (l *ListenerProxy) SetAddr(addr net.Addr) {
@@ -56,10 +46,6 @@ func (l *ListenerProxy) Addr() net.Addr {
 
 func (l *ListenerProxy) DispatchConnAsync(conn net.Conn) {
 	l.Connects <- conn
-}
-
-func (l *ListenerProxy) Serve() error {
-	return l.ProtocolValue.Serve(l)
 }
 
 var _ Listener = &ListenerProxy{}

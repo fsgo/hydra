@@ -11,21 +11,21 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/fsgo/hydra/protocol"
+	"github.com/fsgo/hydra/servers"
 )
 
-// Protocol HTTP 协议
-type Protocol struct {
+// Server HTTP 协议
+type Server struct {
 	Server *http.Server
 }
 
 // HeaderLen 可判断协议的最小长度
-func (p *Protocol) HeaderLen() int {
+func (p *Server) HeaderLen() int {
 	return 7
 }
 
 // Name 协议名称
-func (p *Protocol) Name() string {
+func (p *Server) Name() string {
 	return "HTTP"
 }
 
@@ -44,7 +44,7 @@ var methods = [][]byte{
 }
 
 // Is 判断是否当前支持的协议
-func (p *Protocol) Is(header []byte) bool {
+func (p *Server) Is(header []byte) bool {
 	for _, method := range methods {
 		if bytes.HasPrefix(header, method) {
 			return true
@@ -58,7 +58,7 @@ func (p *Protocol) Is(header []byte) bool {
 }
 
 // Serve 对请求进行处理
-func (p *Protocol) Serve(l net.Listener) error {
+func (p *Server) Serve(l net.Listener) error {
 	if p.Server == nil {
 		p.Server = &http.Server{}
 	}
@@ -66,11 +66,11 @@ func (p *Protocol) Serve(l net.Listener) error {
 }
 
 // Close 关闭协议服务
-func (p *Protocol) Close() error {
+func (p *Server) Close() error {
 	if p.Server == nil {
 		return nil
 	}
 	return p.Server.Close()
 }
 
-var _ protocol.Protocol = &Protocol{}
+var _ servers.Server = &Server{}

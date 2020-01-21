@@ -1,10 +1,10 @@
 /*
- * Copyright(C) 2019 github.com/hidu  All Rights Reserved.
+ * Copyright(C) 2020 github.com/hidu  All Rights Reserved.
  * Author: hidu (duv123+git@baidu.com)
- * Date: 2019/12/29
+ * Date: 2020/1/18
  */
 
-package mpserver
+package xnet
 
 import (
 	"bytes"
@@ -13,14 +13,21 @@ import (
 	"net"
 )
 
-func newConn(cn net.Conn, opts *Options) *conn {
-	return &conn{
-		Conn: cn,
+func NewConn(conn net.Conn, opts *Options) Conn {
+	return &ConnProxy{
+		Conn: conn,
 		Opts: opts,
 	}
 }
 
-type conn struct {
+type Conn interface {
+	net.Conn
+
+	Header(expectLen int) ([]byte, error)
+	OnConnect() error
+}
+
+type ConnProxy struct {
 	net.Conn
 	header       []byte
 	headerReader io.Reader
@@ -30,7 +37,7 @@ type conn struct {
 }
 
 // Header 获取请求头，用于判断协议
-func (c *conn) Header(expectLen int) ([]byte, error) {
+func (c *ConnProxy) Header(expectLen int) ([]byte, error) {
 	nl := expectLen - len(c.header)
 	if nl <= 0 {
 		return c.header[:expectLen], nil
@@ -52,11 +59,11 @@ func (c *conn) Header(expectLen int) ([]byte, error) {
 }
 
 // Read 读取内容
-func (c *conn) Read(b []byte) (int, error) {
+func (c *ConnProxy) Read(b []byte) (int, error) {
 	return c.read(b)
 }
 
-func (c *conn) read(b []byte) (int, error) {
+func (c *ConnProxy) read(b []byte) (int, error) {
 	if !c.headerHas {
 		return c.Conn.Read(b)
 	}
@@ -77,16 +84,18 @@ func (c *conn) read(b []byte) (int, error) {
 	return m + n, errM
 }
 
-func (c *conn) OnConnect() error {
+func (c *ConnProxy) OnConnect() error {
 	if c.Opts.OnConnect != nil {
 		return c.Opts.OnConnect(c.Conn)
 	}
 	return nil
 }
 
-func (c *conn) Close() error {
+func (c *ConnProxy) Close() error {
 	if c.Opts.OnConnClose != nil {
 		c.Opts.OnConnClose(c.Conn)
 	}
 	return c.Conn.Close()
 }
+
+var _ Conn = &ConnProxy{}

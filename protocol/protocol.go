@@ -16,11 +16,8 @@ type Protocol interface {
 
 	Is(header []byte) bool
 
-	BindConfig(config *Config)
-
 	Name() string
 
 	Serve(l net.Listener) error
-
 	Close() error
 }

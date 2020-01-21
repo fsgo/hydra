@@ -1,2 +1,4 @@
-github.com/fsgo/fshead v0.0.0-20200111140256-559f866caa01 h1:mDNycg5dCWlb8hS5yfgmRNEzA2swlx6uMYLQAXM//Uk=
-github.com/fsgo/fshead v0.0.0-20200111140256-559f866caa01/go.mod h1:/fENmvjoxzaifzzavmrWrQx5LdJjCfj+vZJQL2e8gIQ=
+github.com/fsgo/fsprotocol v0.0.0-20200118144053-008f688df420 h1:GRMCYgc+LWz9GIUWPt8bJBhcwHIR8h06Zxz6MafzRRY=
+github.com/fsgo/fsprotocol v0.0.0-20200118144053-008f688df420/go.mod h1:TosKvBCA8d2hyathf4AAK7VAU9x9g+lftNgbBGl2wiU=
+github.com/fsgo/fsprotocol v0.0.0-20200121014316-9c3cf0370c86 h1:a56eC0bFZG66pWEGtpcDpKsknsZp5v+nqMMVVuWfx4w=
+github.com/fsgo/fsprotocol v0.0.0-20200121014316-9c3cf0370c86/go.mod h1:TosKvBCA8d2hyathf4AAK7VAU9x9g+lftNgbBGl2wiU=

@@ -15,42 +15,38 @@ import (
 	"github.com/fsgo/mpserver/protocol"
 )
 
-func newProtocol(p protocol.Protocol) *serverProtocol {
-	return &serverProtocol{
-		Protocol: p,
-		ListenerProxy: &listenerProxy{
-			connects: make(chan net.Conn, 100),
-		},
+var ErrUnknownProtocol = fmt.Errorf("protocol not support yet")
+
+type Server interface {
+	RegisterProtocol(p protocol.Protocol)
+	Listen(addr net.Addr) (l net.Listener, err error)
+	Serve(listener net.Listener, errChan chan error)
+	Dispatch(conn net.Conn) error
+	Stop() error
+}
+
+func NewServer(opts *Options) Server {
+	return &XServer{
+		Opts: opts,
 	}
 }
 
-type serverProtocol struct {
-	Protocol      protocol.Protocol
-	ListenerProxy *listenerProxy
-}
-
-func (sp *serverProtocol) Close() error {
-	if err := sp.ListenerProxy.Close(); err != nil {
-		return err
-	}
-	return nil
-}
-
-type protocols struct {
+type XServer struct {
 	Opts      *Options
-	protocols []*serverProtocol
+	Listeners []Listener
 }
 
-func (ps *protocols) Register(p protocol.Protocol) {
-	ps.protocols = append(ps.protocols, newProtocol(p))
-	sort.Slice(ps.protocols, func(i, j int) bool {
-		a := ps.protocols[i]
-		b := ps.protocols[j]
-		return a.Protocol.HeaderLen() > b.Protocol.HeaderLen()
+func (ps *XServer) RegisterProtocol(p protocol.Protocol) {
+	ps.Listeners = append(ps.Listeners, NewListener(p))
+
+	sort.Slice(ps.Listeners, func(i, j int) bool {
+		a := ps.Listeners[i]
+		b := ps.Listeners[j]
+		return a.Protocol().HeaderLen() > b.Protocol().HeaderLen()
 	})
 }
 
-func (ps *protocols) Listen(addr net.Addr) (l net.Listener, err error) {
+func (ps *XServer) Listen(addr net.Addr) (l net.Listener, err error) {
 	switch addr.(type) {
 	case *net.TCPAddr:
 		l, err = net.ListenTCP(addr.Network(), addr.(*net.TCPAddr))
@@ -59,7 +55,6 @@ func (ps *protocols) Listen(addr net.Addr) (l net.Listener, err error) {
 	default:
 		l, err = nil, errors.New("not support addr:"+addr.String())
 	}
-
 	if l != nil && ps.Opts.OnListen != nil {
 		if errCallBack := ps.Opts.OnListen(l); errCallBack != nil {
 			l.Close()
@@ -70,17 +65,17 @@ func (ps *protocols) Listen(addr net.Addr) (l net.Listener, err error) {
 	return l, err
 }
 
-func (ps *protocols) Serve(listener net.Listener, errChan chan error) {
-	for _, p := range ps.protocols {
-		p.ListenerProxy.addr = listener.Addr()
-		go func(p *serverProtocol) {
-			errChan <- p.Protocol.Serve(p.ListenerProxy)
-		}(p)
+func (ps *XServer) Serve(listener net.Listener, errChan chan error) {
+	for _, ls := range ps.Listeners {
+		ls.SetAddr(listener.Addr())
+		go func(ls Listener) {
+			errChan <- ls.Serve()
+		}(ls)
 	}
 }
 
-func (ps *protocols) Dispatch(conn net.Conn) error {
-	myConn := newConn(conn, ps.Opts)
+func (ps *XServer) Dispatch(conn net.Conn) error {
+	myConn := NewConn(conn, ps.Opts)
 	if err := myConn.OnConnect(); err != nil {
 		return err
 	}
@@ -88,27 +83,31 @@ func (ps *protocols) Dispatch(conn net.Conn) error {
 	var header []byte
 	var errHeader error
 
-	for _, p := range ps.protocols {
-		header, errHeader = myConn.Header(p.Protocol.HeaderLen())
+	for _, ls := range ps.Listeners {
+		header, errHeader = myConn.Header(ls.Protocol().HeaderLen())
 		if errHeader != nil {
 			conn.Write([]byte(errHeader.Error()))
 			myConn.Close()
 			return errHeader
 		}
 
-		if p.Protocol.Is(header) {
-			p.ListenerProxy.DispatchConnAsync(myConn)
+		if ls.Protocol().Is(header) {
+			ls.DispatchConnAsync(myConn)
 			return nil
 		}
 	}
-	return fmt.Errorf("protocol not support yet")
+
+	myConn.Close()
+	return ErrUnknownProtocol
 }
 
-func (ps *protocols) Stop() error {
-	for _, p := range ps.protocols {
+func (ps *XServer) Stop() error {
+	for _, p := range ps.Listeners {
 		if err := p.Close(); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+var _ Server = &XServer{}

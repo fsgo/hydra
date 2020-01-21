@@ -13,7 +13,10 @@ import (
 	"sync/atomic"
 
 	"github.com/fsgo/mpserver/protocol"
+	"github.com/fsgo/mpserver/xnet"
 )
+
+type Options = xnet.Options
 
 // MultiProtocolServer 多协议server接口定义
 type MultiProtocolServer interface {
@@ -29,12 +32,10 @@ type MultiProtocolServer interface {
 // NewServer 一个新的server
 func NewServer(opts *Options) MultiProtocolServer {
 	if opts == nil {
-		opts = OptionsDefault
+		opts = xnet.OptionsDefault
 	}
 	return &Server{
-		protocols: &protocols{
-			Opts: opts,
-		},
+		xServer: xnet.NewServer(opts),
 	}
 }
 
@@ -42,7 +43,7 @@ func NewServer(opts *Options) MultiProtocolServer {
 type Server struct {
 	addr net.Addr
 
-	protocols *protocols
+	xServer xnet.Server
 
 	running int32
 }
@@ -54,7 +55,7 @@ func (s *Server) SetListenAddr(addr net.Addr) {
 
 // RegisterProtocol 注册一种新协议
 func (s *Server) RegisterProtocol(p protocol.Protocol) {
-	s.protocols.Register(p)
+	s.xServer.RegisterProtocol(p)
 }
 
 // Start 启动服务
@@ -64,7 +65,7 @@ func (s *Server) Start() error {
 		return errors.New("addr is nil")
 	}
 
-	listener, err := s.protocols.Listen(s.addr)
+	listener, err := s.xServer.Listen(s.addr)
 
 	if err != nil {
 		return err
@@ -76,7 +77,7 @@ func (s *Server) Start() error {
 
 	errChan := make(chan error, 1)
 
-	s.protocols.Serve(listener, errChan)
+	s.xServer.Serve(listener, errChan)
 
 	for {
 		if atomic.LoadInt32(&s.running) != 1 {
@@ -93,7 +94,7 @@ func (s *Server) Start() error {
 		if err != nil {
 			log.Fatal("listener.Accept error:", err)
 		}
-		go s.protocols.Dispatch(conn)
+		go s.xServer.Dispatch(conn)
 	}
 
 	return errors.New("server exists")
@@ -101,7 +102,7 @@ func (s *Server) Start() error {
 
 // Stop 停止服务
 func (s *Server) Stop() error {
-	if err := s.protocols.Stop(); err != nil {
+	if err := s.xServer.Stop(); err != nil {
 		return err
 	}
 	atomic.StoreInt32(&s.running, 0)

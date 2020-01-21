@@ -1,10 +1,10 @@
 /*
  * Copyright(C) 2020 github.com/hidu  All Rights Reserved.
  * Author: hidu (duv123+git@baidu.com)
- * Date: 2020/1/12
+ * Date: 2020/1/18
  */
 
-package mpserver
+package xnet
 
 import (
 	"log"
@@ -32,3 +32,5 @@ var OptionsDefault = &Options{
 		log.Println("OnConnClose", conn.RemoteAddr().String())
 	},
 }
+
+var OptionsNil = &Options{}

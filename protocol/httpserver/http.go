@@ -4,7 +4,7 @@
  * Date: 2019/12/28
  */
 
-package http
+package httpserver
 
 import (
 	"bytes"

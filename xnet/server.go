@@ -7,42 +7,69 @@
 package xnet
 
 import (
-	"github.com/fsgo/hydra/servers"
+	"github.com/fsgo/hydra/protocol"
 )
 
 type Server interface {
-	Server() servers.Server
-	Listener() Listener
+	Protocol() protocol.Protocol
+	Is(conn XConn) (is bool, err error)
+	Listener() XListener
 	Serve() error
 	Close() error
 }
 
-func newServer(ss servers.Server, lsSize int) Server {
+func newServer(p protocol.Protocol, listenerSize int) Server {
+	p.HeaderLen().MustValid()
+
 	return &server{
-		ServerVal:   ss,
-		ListenerVal: NewListener(lsSize),
+		protocol: p,
+		listener: NewListener(listenerSize),
 	}
 }
 
 type server struct {
-	ListenerVal Listener
-	ServerVal   servers.Server
+	listener XListener
+	protocol protocol.Protocol
+}
+
+func (s *server) Is(conn XConn) (is bool, err error) {
+	hl := s.protocol.HeaderLen()
+	// 先用少量字符做明确的非判断
+	header, errHeader := conn.Header(hl[0])
+	if errHeader != nil {
+		return false, errHeader
+	}
+
+	if s.protocol.MustNot(header) {
+		return false, nil
+	}
+
+	// 在验证更多字符
+	header, errHeader = conn.Header(hl[1])
+	if errHeader != nil {
+		return false, errHeader
+	}
+
+	if s.protocol.Is(header) {
+		return true, nil
+	}
+	return false, nil
 }
 
 func (s *server) Close() error {
-	return s.ServerVal.Close()
+	return s.protocol.Close()
 }
 
 func (s *server) Serve() error {
-	return s.ServerVal.Serve(s.ListenerVal)
+	return s.protocol.Serve(s.listener)
 }
 
-func (s *server) Listener() Listener {
-	return s.ListenerVal
+func (s *server) Listener() XListener {
+	return s.listener
 }
 
-func (s *server) Server() servers.Server {
-	return s.ServerVal
+func (s *server) Protocol() protocol.Protocol {
+	return s.protocol
 }
 
 var _ Server = &server{}

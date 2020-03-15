@@ -7,18 +7,19 @@
 package xnet
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
 	"sort"
 
-	"github.com/fsgo/hydra/servers"
+	"github.com/fsgo/hydra/protocol"
 )
 
 var ErrUnknownProtocol = fmt.Errorf("protocol not support yet")
 
 type Hydra interface {
-	RegisterServer(p servers.Server)
+	RegisterProtocol(p protocol.Protocol)
 	Listen(addr net.Addr) (l net.Listener, err error)
 	Serve(listener net.Listener, errChan chan error)
 	Dispatch(conn net.Conn) error
@@ -26,9 +27,8 @@ type Hydra interface {
 }
 
 func NewHydra(opts *Options) Hydra {
-
 	if opts == nil {
-		opts = OptionsDefault
+		opts = OptionsEmpty
 	}
 
 	return &hydra{
@@ -41,13 +41,13 @@ type hydra struct {
 	Servers []Server
 }
 
-func (ps *hydra) RegisterServer(p servers.Server) {
+func (ps *hydra) RegisterProtocol(p protocol.Protocol) {
 	ps.Servers = append(ps.Servers, newServer(p, ps.Opts.GetListerChanSize()))
 
 	sort.Slice(ps.Servers, func(i, j int) bool {
 		a := ps.Servers[i]
 		b := ps.Servers[j]
-		return a.Server().HeaderLen() > b.Server().HeaderLen()
+		return a.Protocol().HeaderLen()[1] > b.Protocol().HeaderLen()[1]
 	})
 }
 
@@ -60,11 +60,13 @@ func (ps *hydra) Listen(addr net.Addr) (l net.Listener, err error) {
 	default:
 		l, err = nil, errors.New("not support addr:"+addr.String())
 	}
-	if l != nil && ps.Opts.OnListen != nil {
-		if errCallBack := ps.Opts.OnListen(l); errCallBack != nil {
-			l.Close()
-			return nil, errCallBack
-		}
+	if err != nil {
+		return l, err
+	}
+
+	if errCallBack := ps.Opts.OnListen(l); errCallBack != nil {
+		l.Close()
+		return nil, errCallBack
 	}
 
 	return l, err
@@ -81,22 +83,19 @@ func (ps *hydra) Serve(listener net.Listener, errChan chan error) {
 
 func (ps *hydra) Dispatch(conn net.Conn) error {
 	myConn := NewConn(conn, ps.Opts)
-	if err := myConn.OnConnect(); err != nil {
+	if err := ps.Opts.OnConnect(myConn); err != nil {
 		return err
 	}
 
-	var header []byte
-	var errHeader error
-
 	for _, server := range ps.Servers {
-		header, errHeader = myConn.Header(server.Server().HeaderLen())
-		if errHeader != nil {
-			conn.Write([]byte(errHeader.Error()))
+		is, err := server.Is(myConn)
+		if err != nil {
+			conn.Write([]byte(err.Error()))
 			myConn.Close()
-			return errHeader
+			return err
 		}
 
-		if server.Server().Is(header) {
+		if is {
 			server.Listener().DispatchConnAsync(myConn)
 			return nil
 		}
@@ -107,12 +106,16 @@ func (ps *hydra) Dispatch(conn net.Conn) error {
 }
 
 func (ps *hydra) Stop() error {
+	var buf bytes.Buffer
 	for _, p := range ps.Servers {
 		if err := p.Close(); err != nil {
-			return err
+			buf.WriteString(fmt.Sprintf("server=%s Close with error:=%v;", p.Protocol().Name(), err))
 		}
 	}
-	return nil
+	if buf.Len() == 0 {
+		return nil
+	}
+	return errors.New(buf.String())
 }
 
 var _ Hydra = &hydra{}

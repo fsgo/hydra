@@ -13,11 +13,11 @@ import (
 
 type Options struct {
 	ListerChanSize int
-	OnListen       func(l net.Listener) error
-	OnConnect      func(conn net.Conn) error
-	OnConnClose    func(conn net.Conn)
+	OnListenFn     func(l net.Listener) error
+	OnConnectFn    func(conn net.Conn) error
+	OnConnCloseFn  func(conn net.Conn)
 
-	OnAcceptError func(err error)
+	OnAcceptErrorFn func(err error)
 }
 
 func (o *Options) GetListerChanSize() int {
@@ -27,20 +27,50 @@ func (o *Options) GetListerChanSize() int {
 	return 1024
 }
 
+func (o *Options) OnListen(l net.Listener) error {
+	if o.OnListenFn == nil {
+		return nil
+	}
+	return o.OnListenFn(l)
+}
+
+func (o *Options) OnConnect(conn net.Conn) error {
+	if o.OnConnectFn == nil {
+		return nil
+	}
+	return o.OnConnect(conn)
+}
+func (o *Options) OnConnClose(conn net.Conn) {
+	if o.OnConnCloseFn == nil {
+		return
+	}
+	o.OnConnCloseFn(conn)
+}
+func (o *Options) OnAcceptError(err error) {
+	if o.OnAcceptErrorFn == nil {
+		return
+	}
+	o.OnAcceptErrorFn(err)
+}
+
 var OptionsDefault = &Options{
-	OnListen: func(l net.Listener) error {
+	OnListenFn: func(l net.Listener) error {
 		log.Println("OnListen:", l.Addr())
 		return nil
 	},
 
-	OnConnect: func(conn net.Conn) error {
+	OnConnectFn: func(conn net.Conn) error {
 		log.Println("OnConnect,client=", conn.RemoteAddr().String())
 		return nil
 	},
 
-	OnConnClose: func(conn net.Conn) {
+	OnConnCloseFn: func(conn net.Conn) {
 		log.Println("OnConnClose", conn.RemoteAddr().String())
+	},
+
+	OnAcceptErrorFn: func(err error) {
+		log.Println("OnAcceptError", err)
 	},
 }
 
-var OptionsNil = &Options{}
+var OptionsEmpty = &Options{}

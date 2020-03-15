@@ -13,18 +13,17 @@ import (
 	"net"
 )
 
-func NewConn(conn net.Conn, opts *Options) Conn {
+func NewConn(conn net.Conn, opts *Options) XConn {
 	return &ConnProxy{
 		Conn: conn,
-		Opts: opts,
+		opts: opts,
 	}
 }
 
-type Conn interface {
+type XConn interface {
 	net.Conn
 
 	Header(expectLen int) ([]byte, error)
-	OnConnect() error
 }
 
 type ConnProxy struct {
@@ -33,7 +32,7 @@ type ConnProxy struct {
 	headerReader io.Reader
 
 	headerHas bool
-	Opts      *Options
+	opts      *Options
 }
 
 // Header 获取请求头，用于判断协议
@@ -84,18 +83,9 @@ func (c *ConnProxy) read(b []byte) (int, error) {
 	return m + n, errM
 }
 
-func (c *ConnProxy) OnConnect() error {
-	if c.Opts.OnConnect != nil {
-		return c.Opts.OnConnect(c.Conn)
-	}
-	return nil
-}
-
 func (c *ConnProxy) Close() error {
-	if c.Opts.OnConnClose != nil {
-		c.Opts.OnConnClose(c.Conn)
-	}
+	c.opts.OnConnClose(c.Conn)
 	return c.Conn.Close()
 }
 
-var _ Conn = &ConnProxy{}
+var _ XConn = &ConnProxy{}

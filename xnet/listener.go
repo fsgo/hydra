@@ -10,42 +10,42 @@ import (
 	"net"
 )
 
-type Listener interface {
+type XListener interface {
 	net.Listener
 	SetAddr(addr net.Addr)
 	DispatchConnAsync(conn net.Conn)
 }
 
-func NewListener(size int) Listener {
-	return &ListenerProxy{
+func NewListener(size int) XListener {
+	return &Listener{
 		Connects: make(chan net.Conn, size),
 	}
 }
 
-type ListenerProxy struct {
+type Listener struct {
 	AddrValue net.Addr
 	Connects  chan net.Conn
 }
 
-func (l *ListenerProxy) SetAddr(addr net.Addr) {
+func (l *Listener) SetAddr(addr net.Addr) {
 	l.AddrValue = addr
 }
 
-func (l *ListenerProxy) Accept() (net.Conn, error) {
+func (l *Listener) Accept() (net.Conn, error) {
 	return <-l.Connects, nil
 }
 
-func (l *ListenerProxy) Close() error {
+func (l *Listener) Close() error {
 	close(l.Connects)
 	return nil
 }
 
-func (l *ListenerProxy) Addr() net.Addr {
+func (l *Listener) Addr() net.Addr {
 	return l.AddrValue
 }
 
-func (l *ListenerProxy) DispatchConnAsync(conn net.Conn) {
+func (l *Listener) DispatchConnAsync(conn net.Conn) {
 	l.Connects <- conn
 }
 
-var _ Listener = &ListenerProxy{}
+var _ XListener = &Listener{}

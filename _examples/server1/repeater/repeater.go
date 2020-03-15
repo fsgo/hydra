@@ -13,7 +13,7 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/fsgo/hydra/servers"
+	"github.com/fsgo/hydra/protocol"
 )
 
 type Repeater struct {
@@ -21,8 +21,12 @@ type Repeater struct {
 	Handler func(input []byte, writer io.Writer)
 }
 
-func (p *Repeater) HeaderLen() int {
-	return 4
+func (p *Repeater) HeaderLen() protocol.DiscernLengths {
+	return [2]int{4, 4}
+}
+
+func (p *Repeater) MustNot(header []byte) bool {
+	return false
 }
 
 func (p *Repeater) Is(header []byte) bool {
@@ -79,4 +83,4 @@ func (p *Repeater) Close() error {
 	return nil
 }
 
-var _ servers.Server = &Repeater{}
+var _ protocol.Protocol = &Repeater{}

@@ -11,7 +11,7 @@ import (
 	"net"
 	"sync/atomic"
 
-	"github.com/fsgo/hydra/servers"
+	"github.com/fsgo/hydra/protocol"
 	"github.com/fsgo/hydra/xnet"
 )
 
@@ -21,7 +21,7 @@ type Options = xnet.Options
 type Server interface {
 	SetListenAddr(addr net.Addr)
 
-	RegisterServer(s servers.Server)
+	RegisterProtocol(s protocol.Protocol)
 
 	Start() error
 
@@ -31,11 +31,11 @@ type Server interface {
 // NewServer 一个新的server
 func NewServer(opts *Options) Server {
 	if opts == nil {
-		opts = xnet.OptionsDefault
+		opts = xnet.OptionsEmpty
 	}
 	return &defaultServer{
-		opts:    opts,
-		xServer: xnet.NewHydra(opts),
+		opts:  opts,
+		hydra: xnet.NewHydra(opts),
 	}
 }
 
@@ -44,7 +44,7 @@ type defaultServer struct {
 	addr net.Addr
 	opts *xnet.Options
 
-	xServer xnet.Hydra
+	hydra xnet.Hydra
 
 	running int32
 }
@@ -55,8 +55,8 @@ func (s *defaultServer) SetListenAddr(addr net.Addr) {
 }
 
 // RegisterProtocol 注册一种新协议
-func (s *defaultServer) RegisterServer(ss servers.Server) {
-	s.xServer.RegisterServer(ss)
+func (s *defaultServer) RegisterProtocol(ss protocol.Protocol) {
+	s.hydra.RegisterProtocol(ss)
 }
 
 // Start 启动服务
@@ -66,7 +66,7 @@ func (s *defaultServer) Start() error {
 		return errors.New("addr is nil")
 	}
 
-	listener, err := s.xServer.Listen(s.addr)
+	listener, err := s.hydra.Listen(s.addr)
 
 	if err != nil {
 		return err
@@ -76,7 +76,7 @@ func (s *defaultServer) Start() error {
 
 	errChan := make(chan error, 1)
 
-	s.xServer.Serve(listener, errChan)
+	s.hydra.Serve(listener, errChan)
 
 	for {
 		if atomic.LoadInt32(&s.running) != 1 {
@@ -92,21 +92,19 @@ func (s *defaultServer) Start() error {
 		conn, err := listener.Accept()
 
 		if err != nil {
-			if s.opts.OnAcceptError != nil {
-				s.opts.OnAcceptError(err)
-			}
+			s.opts.OnAcceptError(err)
 			continue
 		}
 
-		go s.xServer.Dispatch(conn)
+		go s.hydra.Dispatch(conn)
 	}
 
-	return errors.New("server exists")
+	return errors.New("server exit")
 }
 
 // Stop 停止服务
 func (s *defaultServer) Stop() error {
-	if err := s.xServer.Stop(); err != nil {
+	if err := s.hydra.Stop(); err != nil {
 		return err
 	}
 	atomic.StoreInt32(&s.running, 0)

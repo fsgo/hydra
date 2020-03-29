@@ -1,10 +1,10 @@
 /*
  * Copyright(C) 2020 github.com/hidu  All Rights Reserved.
  * Author: hidu (duv123+git@baidu.com)
- * Date: 2020/1/18
+ * Date: 2020/3/29
  */
 
-package xnet
+package internal
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 )
 
 func NewConn(conn net.Conn, opts *Options) XConn {
-	return &ConnProxy{
+	return &Conn{
 		Conn: conn,
 		opts: opts,
 	}
@@ -22,11 +22,10 @@ func NewConn(conn net.Conn, opts *Options) XConn {
 
 type XConn interface {
 	net.Conn
-
 	Header(expectLen int) ([]byte, error)
 }
 
-type ConnProxy struct {
+type Conn struct {
 	net.Conn
 	header       []byte
 	headerReader io.Reader
@@ -36,7 +35,7 @@ type ConnProxy struct {
 }
 
 // Header 获取请求头，用于判断协议
-func (c *ConnProxy) Header(expectLen int) ([]byte, error) {
+func (c *Conn) Header(expectLen int) ([]byte, error) {
 	nl := expectLen - len(c.header)
 	if nl <= 0 {
 		return c.header[:expectLen], nil
@@ -58,11 +57,11 @@ func (c *ConnProxy) Header(expectLen int) ([]byte, error) {
 }
 
 // Read 读取内容
-func (c *ConnProxy) Read(b []byte) (int, error) {
+func (c *Conn) Read(b []byte) (int, error) {
 	return c.read(b)
 }
 
-func (c *ConnProxy) read(b []byte) (int, error) {
+func (c *Conn) read(b []byte) (int, error) {
 	if !c.headerHas {
 		return c.Conn.Read(b)
 	}
@@ -83,9 +82,9 @@ func (c *ConnProxy) read(b []byte) (int, error) {
 	return m + n, errM
 }
 
-func (c *ConnProxy) Close() error {
+func (c *Conn) Close() error {
 	c.opts.OnConnClose(c.Conn)
 	return c.Conn.Close()
 }
 
-var _ XConn = &ConnProxy{}
+var _ XConn = &Conn{}

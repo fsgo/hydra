@@ -1,18 +1,17 @@
 /*
- * Copyright(C) 2019 github.com/hidu  All Rights Reserved.
+ * Copyright(C) 2020 github.com/hidu  All Rights Reserved.
  * Author: hidu (duv123+git@baidu.com)
- * Date: 2019/12/28
+ * Date: 2020/3/29
  */
 
-package protocol
+package internal
 
 import (
 	"fmt"
-	"net"
 )
 
-// protocol 协议接口定义
-type Protocol interface {
+// Head 协议接口定义
+type Head interface {
 	HeaderLen() DiscernLengths
 
 	// 通过header判断是否该协议
@@ -23,10 +22,6 @@ type Protocol interface {
 
 	// 协议名字
 	Name() string
-
-	Serve(l net.Listener) error
-
-	Close() error
 }
 
 // 协议头判断的长度：{长度1,长度2}

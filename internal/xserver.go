@@ -1,8 +1,6 @@
-/*
- * Copyright(C) 2020 github.com/hidu  All Rights Reserved.
- * Author: hidu (duv123+git@baidu.com)
- * Date: 2020/3/29
- */
+// Copyright(C) 2020 github.com/hidu  All Rights Reserved.
+// Author: hidu (duv123+git@baidu.com)
+// Date: 2020/3/29
 
 package internal
 
@@ -10,7 +8,6 @@ type XServer interface {
 	Is(conn XConn) (is bool, err error)
 	Head() Head
 	Listener() XListener
-	Close() error
 }
 
 func NewServer(h Head, listener XListener) XServer {
@@ -49,10 +46,6 @@ func (s *Server) Is(conn XConn) (is bool, err error) {
 		return true, nil
 	}
 	return false, nil
-}
-
-func (s *Server) Close() error {
-	return nil
 }
 
 func (s *Server) Listener() XListener {

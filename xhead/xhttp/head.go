@@ -1,8 +1,6 @@
-/*
- * Copyright(C) 2019 github.com/hidu  All Rights Reserved.
- * Author: hidu (duv123+git@baidu.com)
- * Date: 2019/12/28
- */
+// Copyright(C) 2019 github.com/hidu  All Rights Reserved.
+// Author: hidu (duv123+git@baidu.com)
+// Date: 2019/12/28
 
 package xhttp
 
@@ -18,6 +16,7 @@ var headLen hydra.DiscernLengths
 // Head 协议
 type Head struct{}
 
+// MustNot 通过首字母，快速进行非判断
 func (p *Head) MustNot(header []byte) bool {
 	first := header[0]
 	if _, has := methodFirstBytes[first]; !has {
@@ -31,7 +30,7 @@ func (p *Head) HeaderLen() hydra.DiscernLengths {
 	return headLen
 }
 
-// Name 协议名称
+// Txt 协议名称
 func (p *Head) Name() string {
 	return "HTTP"
 }

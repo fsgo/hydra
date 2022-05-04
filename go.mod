@@ -1,3 +1,3 @@
 module github.com/fsgo/hydra
 
-go 1.13
+go 1.18

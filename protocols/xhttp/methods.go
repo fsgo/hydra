@@ -8,7 +8,10 @@ import (
 	"strings"
 )
 
-var methods = []string{
+// Methods 支持的 HTTP methods 列表
+// 	若有自定义的 Method 需要支持，请直接修改该变量
+// 	修改完成后调用 Prepare 方法重新构建
+var Methods = []string{
 	"GET",
 	"POST",
 	"PUT",
@@ -24,17 +27,19 @@ var methods = []string{
 
 var methodFirstBytes = map[byte]bool{}
 
-// header中空格出现的最小位置
+// header 中空格出现的最小位置
 var minHeaderLength = -1
 
 var methodsMap = map[string]bool{}
 
-// 初始化
-func Init() {
+// Prepare 构建协议解析所需要的缓存数据
+// 默认情况下已在 init 方法里调用
+func Prepare() {
+	methodsMap = map[string]bool{}
 	headLen = [2]int{1, 1}
+	minHeaderLength = -1
 
-	for _, methodUpper := range methods {
-
+	for _, methodUpper := range Methods {
 		{
 			// 获取method 的长度区间
 			length := len(methodUpper)
@@ -65,5 +70,5 @@ func Init() {
 }
 
 func init() {
-	Init()
+	Prepare()
 }

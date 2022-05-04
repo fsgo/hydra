@@ -13,11 +13,11 @@ import (
 
 var headLen hydra.DiscernLengths
 
-// Head 协议
-type Head struct{}
+// Protocol 协议
+type Protocol struct{}
 
 // MustNot 通过首字母，快速进行非判断
-func (p *Head) MustNot(header []byte) bool {
+func (p *Protocol) MustNot(header []byte) bool {
 	first := header[0]
 	if _, has := methodFirstBytes[first]; !has {
 		return true
@@ -25,18 +25,18 @@ func (p *Head) MustNot(header []byte) bool {
 	return false
 }
 
-// HeaderLen 可判断协议的最小长度
-func (p *Head) HeaderLen() hydra.DiscernLengths {
+// DiscernLengths 可判断协议的最小长度
+func (p *Protocol) DiscernLengths() hydra.DiscernLengths {
 	return headLen
 }
 
-// Txt 协议名称
-func (p *Head) Name() string {
+// Name 协议名称
+func (p *Protocol) Name() string {
 	return "HTTP"
 }
 
 // Is 判断是否当前支持的协议
-func (p *Head) Is(header []byte) bool {
+func (p *Protocol) Is(header []byte) bool {
 	spaceIdx := bytes.IndexByte(header, ' ')
 	if spaceIdx < minHeaderLength {
 		return false
@@ -55,4 +55,4 @@ func (p *Head) Is(header []byte) bool {
 	return false
 }
 
-var _ hydra.Head = &Head{}
+var _ hydra.Protocol = &Protocol{}

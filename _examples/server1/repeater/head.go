@@ -12,7 +12,7 @@ import (
 
 type Head struct{}
 
-func (p *Head) HeaderLen() hydra.DiscernLengths {
+func (p *Head) DiscernLengths() hydra.DiscernLengths {
 	return [2]int{4, 4}
 }
 
@@ -28,4 +28,4 @@ func (p *Head) Name() string {
 	return "repeater"
 }
 
-var _ hydra.Head = &Head{}
+var _ hydra.Protocol = &Head{}

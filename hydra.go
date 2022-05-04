@@ -5,88 +5,63 @@
 package hydra
 
 import (
+	"context"
 	"net"
 	"sort"
 	"sync/atomic"
-
-	"github.com/fsgo/hydra/internal"
 )
 
-// Head 协议识别的接口定义
-type Head = internal.Head
-
-type DiscernLengths = internal.DiscernLengths
-
-type Options = internal.Options
-
-var OptionsEmpty = internal.OptionsEmpty
-
-var OptionsDebug = internal.OptionsDebug
-
-// Hydra 识别多协议
-type Hydra interface {
-	// BindHead 绑定一个协议头，并返回对应的Listener
-	BindHead(p Head) (ls net.Listener, err error)
-
-	// Serve 监听服务
-	// 注意，必须在所有 BindHead 完成之后
-	Serve(listener net.Listener) error
-
-	// Stop 停止服务
-	Stop() error
-}
-
-func New(opts *Options) Hydra {
-	if opts == nil {
-		opts = internal.OptionsEmpty
-	}
-	return &hydra{
-		servers: nil,
-		opts:    opts,
-	}
-}
-
-type hydra struct {
-	opts    *Options
-	servers []internal.XServer
+type Hydra struct {
+	Opts    *Options
+	servers []*server
 	running int32
 }
 
-func (h *hydra) Serve(listener net.Listener) error {
+func (h *Hydra) getOpts() *Options {
+	if h.Opts == nil {
+		return optionsEmpty
+	}
+	return h.Opts
+}
+
+// Serve 监听服务
+// 注意，必须在所有 BindHead 完成之后
+func (h *Hydra) Serve(listener net.Listener) error {
 	atomic.StoreInt32(&h.running, 1)
 	for {
 		if atomic.LoadInt32(&h.running) != 1 {
 			break
 		}
-		conn, err := listener.Accept()
+		c, err := listener.Accept()
 
 		if err != nil {
-			h.opts.OnAcceptError(err)
+			h.getOpts().invokeOnAcceptError(err)
 			continue
 		}
 
-		go h.dispatch(conn)
+		go h.dispatch(c)
 	}
 	return nil
 }
 
-func (h *hydra) BindHead(p Head) (ls net.Listener, err error) {
-	ln := internal.NewListener(h.opts.ListerChanSize)
-	ser := internal.NewServer(p, ln)
+// BindHead 绑定一个协议头，并返回对应的 Listener
+func (h *Hydra) BindHead(p Protocol) (ls net.Listener, err error) {
+	ln := newListener(h.getOpts().ListerChanSize)
+	ser := newServer(p, ln)
 	h.servers = append(h.servers, ser)
 
 	sort.Slice(h.servers, func(i, j int) bool {
 		a := h.servers[i]
 		b := h.servers[j]
-		return a.Head().HeaderLen()[1] > b.Head().HeaderLen()[1]
+		return a.Head().DiscernLengths()[1] > b.Head().DiscernLengths()[1]
 	})
 	return ln, err
 }
 
-func (h *hydra) dispatch(conn net.Conn) {
-	xc := internal.NewConn(conn, h.opts)
+func (h *Hydra) dispatch(conn net.Conn) {
+	xc := newConn(conn, h.getOpts())
 
-	if err := h.opts.OnConnect(xc); err != nil {
+	if err := h.getOpts().invokeOnConnect(xc); err != nil {
 		xc.Close()
 		return
 	}
@@ -94,7 +69,7 @@ func (h *hydra) dispatch(conn net.Conn) {
 	for _, p := range h.servers {
 		is, err := p.Is(xc)
 		if err != nil {
-			h.opts.OnReadError(conn, err)
+			h.getOpts().invokeOnReadError(conn, err)
 			xc.Close()
 			return
 		}
@@ -105,13 +80,12 @@ func (h *hydra) dispatch(conn net.Conn) {
 	}
 
 	// 不识别的协议
-	h.opts.OnWrongHead(xc)
+	h.getOpts().invokeOnWrongHead(xc)
 	xc.Close()
 }
 
-func (h *hydra) Stop() error {
+// Shutdown 停止服务
+func (h *Hydra) Shutdown(ctx context.Context) error {
 	atomic.StoreInt32(&h.running, 0)
 	return nil
 }
-
-var _ Hydra = &hydra{}

@@ -4,6 +4,6 @@
 
 [使用demo 见此](./_examples/server1/main.go)
 
-比如HTTP协议识别：[xhead/xhttp/head.go](./xhead/xhttp/head.go)
+比如 HTTP 协议识别：[protocols/xhttp/protocol.go](./protocols/xhttp/protocol.go)
 
 

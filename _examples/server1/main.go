@@ -11,14 +11,14 @@ import (
 
 	"github.com/fsgo/hydra"
 	"github.com/fsgo/hydra/_examples/server1/repeater"
-	"github.com/fsgo/hydra/xhead/xhttp"
+	"github.com/fsgo/hydra/protocols"
 )
 
 func main() {
-	s := hydra.New(hydra.OptionsDefault)
+	s := &hydra.Hydra{}
 
 	// 注册http 协议
-	httpLn, _ := s.BindHead(&xhttp.Head{})
+	httpLn, _ := s.BindHead(protocols.HTTP())
 	go serveHTTP(httpLn)
 
 	// 注册自定义协议

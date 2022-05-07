@@ -5,22 +5,14 @@
 package hydra
 
 import (
-	"log"
-	"net"
+	"time"
 )
 
 type Options struct {
 	ListerChanSize int
-
-	OnConnect func(conn net.Conn) error
-
-	OnConnClose func(conn net.Conn)
-
-	ReadError func(conn net.Conn, err error)
+	AcceptTimeout  time.Duration
 
 	OnAcceptError func(err error)
-
-	WrongHead func(conn net.Conn)
 }
 
 func (o *Options) GetListerChanSize() int {
@@ -30,18 +22,11 @@ func (o *Options) GetListerChanSize() int {
 	return 1024
 }
 
-func (o *Options) invokeOnConnect(conn net.Conn) error {
-	if o.OnConnect == nil {
-		return nil
+func (o *Options) GetAcceptTimeout() time.Duration {
+	if o.AcceptTimeout > 0 {
+		return o.AcceptTimeout
 	}
-	return o.OnConnect(conn)
-}
-
-func (o *Options) invokeOnConnClose(conn net.Conn) {
-	if o.OnConnClose == nil {
-		return
-	}
-	o.OnConnClose(conn)
+	return time.Second
 }
 
 func (o *Options) invokeOnAcceptError(err error) {
@@ -49,44 +34,6 @@ func (o *Options) invokeOnAcceptError(err error) {
 		return
 	}
 	o.OnAcceptError(err)
-}
-
-func (o *Options) invokeOnWrongHead(conn net.Conn) {
-	if o.WrongHead == nil {
-		return
-	}
-	o.WrongHead(conn)
-}
-
-func (o *Options) invokeOnReadError(conn net.Conn, err error) {
-	if o.ReadError == nil {
-		return
-	}
-	o.ReadError(conn, err)
-}
-
-// DebugOptions 默认用于调试的选型
-var DebugOptions = &Options{
-	OnConnect: func(conn net.Conn) error {
-		log.Println("invokeOnConnect: client=", conn.RemoteAddr().String())
-		return nil
-	},
-
-	OnConnClose: func(conn net.Conn) {
-		log.Println("invokeOnConnClose: client=", conn.RemoteAddr().String())
-	},
-
-	OnAcceptError: func(err error) {
-		log.Println("invokeOnAcceptError:", err)
-	},
-
-	ReadError: func(conn net.Conn, err error) {
-		log.Println("invokeOnAcceptError: client=", conn.RemoteAddr(), err)
-	},
-
-	WrongHead: func(conn net.Conn) {
-		log.Println("WrongHead: client=", conn.RemoteAddr())
-	},
 }
 
 var optionsEmpty = &Options{}

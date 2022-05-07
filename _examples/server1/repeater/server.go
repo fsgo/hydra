@@ -6,8 +6,11 @@ package repeater
 
 import (
 	"bufio"
+	"context"
 	"io"
+	"log"
 	"net"
+	"os"
 	"sync/atomic"
 )
 
@@ -22,10 +25,19 @@ func (p *Server) Serve(l net.Listener) error {
 	for p.Running() {
 		conn, err := l.Accept()
 		if err != nil {
+			log.Println("repeater Listener error:", err)
+			if os.IsTimeout(err) {
+				continue
+			}
 			return err
 		}
 		go p.handle(conn)
 	}
+	return nil
+}
+
+func (p *Server) Shutdown(ctx context.Context) error {
+	atomic.StoreInt32(&p.running, 0)
 	return nil
 }
 
@@ -49,9 +61,4 @@ func (p *Server) handle(conn net.Conn) {
 		conn.Write(line)
 		conn.Write([]byte("\n"))
 	}
-}
-
-func (p *Server) Close() error {
-	atomic.StoreInt32(&p.running, 0)
-	return nil
 }

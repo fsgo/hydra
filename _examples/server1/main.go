@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/fsgo/hydra"
 	"github.com/fsgo/hydra/_examples/server1/repeater"
@@ -17,14 +18,9 @@ import (
 func main() {
 	s := &hydra.Hydra{}
 
-	// 注册http 协议
-	httpLn, _ := s.BindHead(protocols.HTTP())
-	go serveHTTP(httpLn)
+	s.BindServer(protocols.HTTP(), httpServer())
 
-	// 注册自定义协议
-	rpLn, _ := s.BindHead(&repeater.Head{})
-
-	go serveRepeater(rpLn)
+	s.BindServer(&repeater.Protocol{}, &repeater.Server{})
 
 	ln, err := net.Listen("tcp", "127.0.0.1:8090")
 	if err != nil {
@@ -32,24 +28,21 @@ func main() {
 	}
 	log.Println("now hydra server Listen:", ln.Addr().Network(), ln.Addr().String())
 
+	hydra.WaitShutdown(s, 10*time.Second)
+
 	err = s.Serve(ln)
 
 	log.Fatalln("stopped:", err)
 }
 
-func serveHTTP(ln net.Listener) {
+func httpServer() *http.Server {
 	serveMux := http.NewServeMux()
 	serveMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 		writer.Write([]byte("你好:"))
 		writer.Write([]byte(request.RequestURI))
 	})
-	err := http.Serve(ln, serveMux)
-	log.Println("http server exit:", err)
-}
-
-func serveRepeater(ln net.Listener) {
-	rps := &repeater.Server{}
-	rps.Serve(ln)
-	log.Println()
+	return &http.Server{
+		Handler: serveMux,
+	}
 }

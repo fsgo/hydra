@@ -8,11 +8,16 @@ import (
 	"github.com/fsgo/hydra"
 )
 
-var headLen = hydra.DiscernLengths{1, 4}
-
 var expect = []byte{'P', 'R', 'P', 'C'}
 
-type Protocol struct {
+type Protocol struct{}
+
+func (p *Protocol) MinLen() int {
+	return 1
+}
+
+func (p *Protocol) MaxLen() int {
+	return 4
 }
 
 func (p *Protocol) Is(header []byte) bool {
@@ -25,17 +30,11 @@ func (p *Protocol) Is(header []byte) bool {
 }
 
 func (p *Protocol) MustNot(header []byte) bool {
-	first := header[0]
-	return first != header[0]
+	return header[0] != expect[0]
 }
 
 func (p *Protocol) Name() string {
-	// TODO implement me
-	panic("implement me")
+	return "PRPC"
 }
 
-func (p *Protocol) DiscernLengths() hydra.DiscernLengths {
-	return headLen
-}
-
-var _ hydra.Protocol = &Protocol{}
+var _ hydra.Protocol = (*Protocol)(nil)

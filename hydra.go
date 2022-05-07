@@ -7,14 +7,29 @@ package hydra
 import (
 	"context"
 	"net"
-	"sort"
+	"os"
 	"sync/atomic"
+	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
+var _ Server = (*Hydra)(nil)
+
+// Hydra 识别多协议的 fixedListenerServer
 type Hydra struct {
-	Opts    *Options
-	servers []*server
-	running int32
+	// Opts 配置选项，可选
+	Opts *Options
+
+	// DefaultListener 未识别的协议，可选
+	// 若未设置，在运行时会自动初始化
+	DefaultListener Listener
+
+	referees referees
+	listener net.Listener
+	running  int32
+
+	servers []Server
 }
 
 func (h *Hydra) getOpts() *Options {
@@ -24,68 +39,138 @@ func (h *Hydra) getOpts() *Options {
 	return h.Opts
 }
 
+func (h *Hydra) initListeners() {
+	if h.DefaultListener == nil {
+		h.DefaultListener = NewListener(h.getOpts().ListerChanSize)
+		h.DefaultListener.SetLocalAddr(h.listener.Addr())
+	}
+	for i := 0; i < len(h.referees); i++ {
+		r := h.referees[i]
+		r.listener.SetLocalAddr(h.listener.Addr())
+	}
+}
+
+// Listen 绑定一个协议头，并返回对应的 Listener
+func (h *Hydra) Listen(p Protocol) net.Listener {
+	ln := NewListener(h.getOpts().ListerChanSize)
+	h.BindListener(p, ln)
+	return ln
+}
+
+// BindListener 绑定协议和 Listener
+// 解析成功的 Conn 会发送到该 Listener
+func (h *Hydra) BindListener(p Protocol, ln Listener) {
+	ser := newReferee(p, ln)
+	h.referees = append(h.referees, ser)
+	h.referees.MustCheck()
+	h.referees.Sort()
+}
+
+// GetDefaultListener 未知协议的连接
+func (h *Hydra) GetDefaultListener() net.Listener {
+	return h.DefaultListener
+}
+
+// BindServer 绑定协议和 Server
+func (h *Hydra) BindServer(p Protocol, ser Server) {
+	ns := &fixedListenerServer{
+		Server:   ser,
+		listener: h.Listen(p),
+	}
+	h.servers = append(h.servers, ns)
+}
+
+// SetDefaultServer 绑定未知协议对应的 Server
+func (h *Hydra) SetDefaultServer(ser Server) {
+	ns := &fixedListenerServer{
+		Server:   ser,
+		listener: h.GetDefaultListener(),
+	}
+	h.servers = append(h.servers, ns)
+}
+
 // Serve 监听服务
-// 注意，必须在所有 BindHead 完成之后
+// 注意，必须在所有 Listen 完成之后
 func (h *Hydra) Serve(listener net.Listener) error {
+	h.listener = listener
+	h.initListeners()
 	atomic.StoreInt32(&h.running, 1)
+
+	g := &errgroup.Group{}
+	g.Go(func() error {
+		return h.serve()
+	})
+	for i := 0; i < len(h.servers); i++ {
+		ser := h.servers[i]
+		g.Go(func() error {
+			return ser.Serve(nil)
+		})
+	}
+	return g.Wait()
+}
+
+func (h *Hydra) serve() error {
+	var timeout time.Duration
+	var sd canSetDeadline
+	var ok bool
+	if sd, ok = h.listener.(canSetDeadline); ok {
+		timeout = h.getOpts().GetAcceptTimeout()
+	}
+
+	defer h.referees.Close()
+
 	for {
 		if atomic.LoadInt32(&h.running) != 1 {
 			break
 		}
-		c, err := listener.Accept()
-
+		if timeout > 0 {
+			sd.SetDeadline(time.Now().Add(timeout))
+		}
+		c, err := h.listener.Accept()
 		if err != nil {
+			if os.IsTimeout(err) {
+				time.Sleep(5 * time.Millisecond)
+				continue
+			}
 			h.getOpts().invokeOnAcceptError(err)
 			continue
 		}
-
 		go h.dispatch(c)
 	}
-	return nil
-}
-
-// BindHead 绑定一个协议头，并返回对应的 Listener
-func (h *Hydra) BindHead(p Protocol) (ls net.Listener, err error) {
-	ln := newListener(h.getOpts().ListerChanSize)
-	ser := newServer(p, ln)
-	h.servers = append(h.servers, ser)
-
-	sort.Slice(h.servers, func(i, j int) bool {
-		a := h.servers[i]
-		b := h.servers[j]
-		return a.Head().DiscernLengths()[1] > b.Head().DiscernLengths()[1]
-	})
-	return ln, err
+	return net.ErrClosed
 }
 
 func (h *Hydra) dispatch(conn net.Conn) {
-	xc := newConn(conn, h.getOpts())
-
-	if err := h.getOpts().invokeOnConnect(xc); err != nil {
-		xc.Close()
-		return
-	}
-
-	for _, p := range h.servers {
-		is, err := p.Is(xc)
+	pc := newConn(conn)
+	for _, ref := range h.referees {
+		is, err := ref.Is(pc)
 		if err != nil {
-			h.getOpts().invokeOnReadError(conn, err)
-			xc.Close()
+			pc.Close()
 			return
 		}
 		if is {
-			p.Listener().DispatchConnAsync(xc)
+			ref.listener.Dispatch(pc)
 			return
 		}
 	}
-
 	// 不识别的协议
-	h.getOpts().invokeOnWrongHead(xc)
-	xc.Close()
+	h.DefaultListener.Dispatch(pc)
 }
 
 // Shutdown 停止服务
 func (h *Hydra) Shutdown(ctx context.Context) error {
 	atomic.StoreInt32(&h.running, 0)
-	return nil
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	g, ctx := errgroup.WithContext(ctx)
+	for i := 0; i < len(h.servers); i++ {
+		ser := h.servers[i]
+		g.Go(func() error {
+			return ser.Shutdown(ctx)
+		})
+	}
+
+	return g.Wait()
 }

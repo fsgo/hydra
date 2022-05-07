@@ -1,163 +1,102 @@
 // Copyright(C) 2022 github.com/hidu  All Rights Reserved.
 // Author: hidu <duv123@gmail.com>
-// Date: 2022/5/4
+// Date: 2022/5/7
 
 package hydra
 
 import (
-	"bytes"
-	"fmt"
-	"io"
+	"context"
+	"log"
 	"net"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 )
 
-type picker interface {
-	Pick(n int) ([]byte, error)
+// Server 具备优雅关闭的 server
+type Server interface {
+	// Serve 启动 server
+	Serve(net.Listener) error
+
+	// Shutdown 优雅关闭
+	Shutdown(context.Context) error
 }
 
-func newServer(h Protocol, listener *listener) *server {
-	h.DiscernLengths().MustValid()
+type CanShutdown interface {
+	// Shutdown 优雅关闭
+	Shutdown(context.Context) error
+}
 
-	return &server{
-		head:     h,
-		listener: listener,
+var _ Server = (*fixedListenerServer)(nil)
+
+type fixedListenerServer struct {
+	Server
+	listener net.Listener
+}
+
+func (s *fixedListenerServer) Serve(_ net.Listener) error {
+	return s.Server.Serve(s.listener)
+}
+
+func (s *fixedListenerServer) Shutdown(ctx context.Context) error {
+	return s.Server.Shutdown(ctx)
+}
+
+// Logger 日志接口定义
+type Logger interface {
+	Println(v ...any)
+	Printf(format string, v ...any)
+}
+
+// GraceShutdown 优雅关闭 server
+type GraceShutdown struct {
+	Timeout time.Duration
+	Signals []os.Signal
+	Logger  Logger
+}
+
+// WaitSignal 异步等待退出信号
+func (sd *GraceShutdown) WaitSignal(ser CanShutdown) {
+	go sd.wait(ser)
+}
+
+func (sd *GraceShutdown) wait(ser CanShutdown) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, sd.getSignals()...)
+	sig := <-ch
+
+	sd.getLogger().Println("[GraceShutdown] receive signal ", sig, ", start Shutdown")
+	ctx, cancel := context.WithTimeout(context.Background(), sd.getTimeout())
+	defer cancel()
+	err := ser.Shutdown(ctx)
+	sd.getLogger().Println("[GraceShutdown] Shutdown finish, err=", err)
+}
+
+func (sd *GraceShutdown) getSignals() []os.Signal {
+	if len(sd.Signals) == 0 {
+		return []os.Signal{os.Interrupt, syscall.SIGTERM}
 	}
+	return sd.Signals
 }
 
-type server struct {
-	listener *listener
-	head     Protocol
-}
-
-func (s *server) Is(conn picker) (is bool, err error) {
-	hl := s.head.DiscernLengths()
-	// 先用少量字符做明确的非判断
-	header, errHeader := conn.Pick(hl[0])
-	if errHeader != nil {
-		return false, errHeader
+func (sd *GraceShutdown) getTimeout() time.Duration {
+	if sd.Timeout > 0 {
+		return sd.Timeout
 	}
+	return time.Minute
+}
 
-	if s.head.MustNot(header) {
-		return false, nil
+func (sd *GraceShutdown) getLogger() Logger {
+	if sd.Logger != nil {
+		return sd.Logger
 	}
+	return log.Default()
+}
 
-	// 再验证更多字符
-	header, errHeader = conn.Pick(hl[1])
-	if errHeader != nil {
-		return false, errHeader
+func WaitShutdown(ser CanShutdown, timeout time.Duration) {
+	gs := &GraceShutdown{
+		Timeout: timeout,
 	}
-
-	if s.head.Is(header) {
-		return true, nil
-	}
-	return false, nil
-}
-
-func (s *server) Listener() *listener {
-	return s.listener
-}
-
-func (s *server) Head() Protocol {
-	return s.head
-}
-
-func newListener(size int) *listener {
-	return &listener{
-		Connects: make(chan net.Conn, size),
-	}
-}
-
-type listener struct {
-	AddrValue net.Addr
-	Connects  chan net.Conn
-}
-
-func (l *listener) SetAddr(addr net.Addr) {
-	l.AddrValue = addr
-}
-
-func (l *listener) Accept() (net.Conn, error) {
-	return <-l.Connects, nil
-}
-
-func (l *listener) Close() error {
-	close(l.Connects)
-	return nil
-}
-
-func (l *listener) Addr() net.Addr {
-	return l.AddrValue
-}
-
-func (l *listener) DispatchConnAsync(conn net.Conn) {
-	l.Connects <- conn
-}
-
-func newConn(raw net.Conn, opts *Options) *conn {
-	return &conn{
-		Conn: raw,
-		opts: opts,
-	}
-}
-
-type conn struct {
-	net.Conn
-	header       []byte
-	headerReader io.Reader
-
-	headerHas bool
-	opts      *Options
-}
-
-// Pick 获取请求头，用于判断协议
-func (c *conn) Pick(expectLen int) ([]byte, error) {
-	nl := expectLen - len(c.header)
-	if nl <= 0 {
-		return c.header[:expectLen], nil
-	}
-
-	buf := make([]byte, nl)
-	n, err := c.Conn.Read(buf)
-	if err != nil {
-		return nil, err
-	}
-	if n != nl {
-		return nil, fmt.Errorf("expect read length=%d,got=%d", nl, n)
-	}
-
-	c.header = append(c.header, buf...)
-	c.headerReader = bytes.NewReader(c.header)
-	c.headerHas = true
-	return c.header, nil
-}
-
-// Read 读取内容
-func (c *conn) Read(b []byte) (int, error) {
-	return c.read(b)
-}
-
-func (c *conn) read(b []byte) (int, error) {
-	if !c.headerHas {
-		return c.Conn.Read(b)
-	}
-	n, err := c.headerReader.Read(b)
-
-	if err != nil {
-		if err == io.EOF {
-			c.headerHas = false
-		} else {
-			return n, err
-		}
-	}
-
-	if n == len(b) {
-		return n, nil
-	}
-	m, errM := c.Conn.Read(b[n:])
-	return m + n, errM
-}
-
-func (c *conn) Close() error {
-	c.opts.invokeOnConnClose(c.Conn)
-	return c.Conn.Close()
+	gs.WaitSignal(ser)
 }

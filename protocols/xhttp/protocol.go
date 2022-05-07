@@ -11,10 +11,18 @@ import (
 	"github.com/fsgo/hydra"
 )
 
-var headLen hydra.DiscernLengths
+var headLen [2]int
 
 // Protocol 协议
 type Protocol struct{}
+
+func (p *Protocol) MinLen() int {
+	return headLen[0]
+}
+
+func (p *Protocol) MaxLen() int {
+	return headLen[1]
+}
 
 // MustNot 通过首字母，快速进行非判断
 func (p *Protocol) MustNot(header []byte) bool {
@@ -23,11 +31,6 @@ func (p *Protocol) MustNot(header []byte) bool {
 		return true
 	}
 	return false
-}
-
-// DiscernLengths 可判断协议的最小长度
-func (p *Protocol) DiscernLengths() hydra.DiscernLengths {
-	return headLen
 }
 
 // Name 协议名称
@@ -55,4 +58,4 @@ func (p *Protocol) Is(header []byte) bool {
 	return false
 }
 
-var _ hydra.Protocol = &Protocol{}
+var _ hydra.Protocol = (*Protocol)(nil)

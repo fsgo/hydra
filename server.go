@@ -12,6 +12,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // Server 具备优雅关闭的 server
@@ -19,11 +21,6 @@ type Server interface {
 	// Serve 启动 server
 	Serve(net.Listener) error
 
-	// Shutdown 优雅关闭
-	Shutdown(context.Context) error
-}
-
-type CanShutdown interface {
 	// Shutdown 优雅关闭
 	Shutdown(context.Context) error
 }
@@ -40,6 +37,7 @@ func (s *fixedListenerServer) Serve(_ net.Listener) error {
 }
 
 func (s *fixedListenerServer) Shutdown(ctx context.Context) error {
+	defer s.listener.Close()
 	return s.Server.Shutdown(ctx)
 }
 
@@ -49,54 +47,67 @@ type Logger interface {
 	Printf(format string, v ...any)
 }
 
-// GraceShutdown 优雅关闭 server
-type GraceShutdown struct {
+// Starter 优雅关闭 server
+type Starter struct {
+	Server   Server
+	Listener net.Listener
+
 	Timeout time.Duration
 	Signals []os.Signal
 	Logger  Logger
 }
 
-// WaitSignal 异步等待退出信号
-func (sd *GraceShutdown) WaitSignal(ser CanShutdown) {
-	go sd.wait(ser)
-}
-
-func (sd *GraceShutdown) wait(ser CanShutdown) {
+func (sd *Starter) RunGrace() error {
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, sd.getSignals()...)
-	sig := <-ch
-
-	sd.getLogger().Println("[GraceShutdown] receive signal ", sig, ", start Shutdown")
-	ctx, cancel := context.WithTimeout(context.Background(), sd.getTimeout())
-	defer cancel()
-	err := ser.Shutdown(ctx)
-	sd.getLogger().Println("[GraceShutdown] Shutdown finish, err=", err)
+	g := &errgroup.Group{}
+	g.Go(func() error {
+		return sd.Server.Serve(sd.Listener)
+	})
+	g.Go(func() error {
+		return sd.shutdown(sd.Server, ch)
+	})
+	return g.Wait()
 }
 
-func (sd *GraceShutdown) getSignals() []os.Signal {
+func (sd *Starter) shutdown(ser Server, ch <-chan os.Signal) error {
+	sig := <-ch
+	sd.getLogger().Println("[Starter] receive signal ", sig, ", start Shutdown")
+	ctx, cancel := context.WithTimeout(context.Background(), sd.getTimeout())
+	defer cancel()
+	start := time.Now()
+	err := ser.Shutdown(ctx)
+	sd.getLogger().Println("[Starter] Shutdown finish, err=", err, ", cost=", time.Since(start))
+	return err
+
+}
+
+func (sd *Starter) getSignals() []os.Signal {
 	if len(sd.Signals) == 0 {
 		return []os.Signal{os.Interrupt, syscall.SIGTERM}
 	}
 	return sd.Signals
 }
 
-func (sd *GraceShutdown) getTimeout() time.Duration {
+func (sd *Starter) getTimeout() time.Duration {
 	if sd.Timeout > 0 {
 		return sd.Timeout
 	}
 	return time.Minute
 }
 
-func (sd *GraceShutdown) getLogger() Logger {
+func (sd *Starter) getLogger() Logger {
 	if sd.Logger != nil {
 		return sd.Logger
 	}
 	return log.Default()
 }
 
-func WaitShutdown(ser CanShutdown, timeout time.Duration) {
-	gs := &GraceShutdown{
-		Timeout: timeout,
+func RunGrace(ser Server, l net.Listener, timeout time.Duration) error {
+	gs := &Starter{
+		Timeout:  timeout,
+		Listener: l,
+		Server:   ser,
 	}
-	gs.WaitSignal(ser)
+	return gs.RunGrace()
 }

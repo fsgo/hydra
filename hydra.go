@@ -117,8 +117,6 @@ func (h *Hydra) serve() error {
 		timeout = h.getOpts().GetAcceptTimeout()
 	}
 
-	defer h.referees.Close()
-
 	for {
 		if atomic.LoadInt32(&h.running) != 1 {
 			break
@@ -171,6 +169,12 @@ func (h *Hydra) Shutdown(ctx context.Context) error {
 			return ser.Shutdown(ctx)
 		})
 	}
+
+	// g.Go(func() error {
+	// 	<-ctx.Done()
+	// 	h.referees.Close()
+	// 	return nil
+	// })
 
 	return g.Wait()
 }

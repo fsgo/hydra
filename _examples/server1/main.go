@@ -28,15 +28,18 @@ func main() {
 	}
 	log.Println("now hydra server Listen:", ln.Addr().Network(), ln.Addr().String())
 
-	hydra.WaitShutdown(s, 10*time.Second)
-
-	err = s.Serve(ln)
+	err = hydra.RunGrace(s, ln, 15*time.Second)
 
 	log.Fatalln("stopped:", err)
 }
 
 func httpServer() *http.Server {
 	serveMux := http.NewServeMux()
+	serveMux.HandleFunc("/slow", func(writer http.ResponseWriter, request *http.Request) {
+		time.Sleep(5 * time.Second)
+		writer.WriteHeader(http.StatusOK)
+		writer.Write([]byte("ok"))
+	})
 	serveMux.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
 		writer.WriteHeader(http.StatusOK)
 		writer.Write([]byte("你好:"))

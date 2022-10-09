@@ -79,7 +79,6 @@ func (sd *Starter) shutdown(ser Server, ch <-chan os.Signal) error {
 	err := ser.Shutdown(ctx)
 	sd.getLogger().Println("[Starter] Shutdown finish, err=", err, ", cost=", time.Since(start))
 	return err
-
 }
 
 func (sd *Starter) getSignals() []os.Signal {

@@ -240,6 +240,7 @@ func (ne *netErr) Error() string {
 func (ne *netErr) Timeout() bool {
 	return ne.timeout
 }
+
 func (ne *netErr) Temporary() bool {
 	return ne.temporary
 }

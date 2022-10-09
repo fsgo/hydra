@@ -9,8 +9,9 @@ import (
 )
 
 // Methods 支持的 HTTP methods 列表
-// 	若有自定义的 Method 需要支持，请直接修改该变量
-// 	修改完成后调用 Prepare 方法重新构建
+//
+//	若有自定义的 Method 需要支持，请直接修改该变量
+//	修改完成后调用 Prepare 方法重新构建
 var Methods = []string{
 	"GET",
 	"POST",
@@ -65,7 +66,6 @@ func Prepare() {
 			methodsMap[methodUpper] = true
 			methodsMap[methodLower] = true
 		}
-
 	}
 }
 
